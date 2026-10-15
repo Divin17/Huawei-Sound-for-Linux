@@ -20,6 +20,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 SINK = os.environ.get(
     "HUAWEI_SPEAKER_SINK",
@@ -27,6 +28,10 @@ SINK = os.environ.get(
 CURVE = os.environ.get("HUAWEI_VOLUME_CURVE",
                        "/usr/local/share/huawei-speakers/windows_volume_curve.csv")
 DEBUG = "--debug" in sys.argv
+# With software volume (WirePlumber api.alsa.soft-mixer) PipeWire no longer
+# manages these, so a stale value restored at boot would silently cap the level.
+HW_CONTROLS = ("Master", "Speaker", "Bass Speaker")
+HW_CHECK_S = 5
 
 
 def log(*parts):
@@ -73,6 +78,13 @@ def set_volume(node_id, value):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def hw_full(card):
+    """Keep the codec's hardware speaker controls at 0 dB, unmuted."""
+    for ctl in HW_CONTROLS:
+        subprocess.run(["amixer", "-c", str(card), "-q", "set", ctl, "100%", "unmute"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def objects(stream):
     """Yield objects from `pw-dump --monitor`, which prints a JSON array per update."""
     buf = []
@@ -89,7 +101,7 @@ def objects(stream):
 
 
 def main():
-    node_id, applied = None, {}
+    node_id, applied, card, hw_checked = None, {}, None, 0.0
     dump = subprocess.Popen(["stdbuf", "-oL", "pw-dump", "--monitor", "--no-colors"],
                             stdout=subprocess.PIPE, text=True)
 
@@ -111,9 +123,15 @@ def main():
             continue
         props = info.get("props") or {}
         if props.get("node.name") == SINK:
+            if node_id != obj["id"]:
+                hw_checked = 0.0         # new or re-created sink: reset hardware now
             node_id = obj["id"]
+            card = props.get("api.alsa.pcm.card", card)
         if obj.get("id") != node_id:
             continue
+        if card is not None and time.monotonic() - hw_checked > HW_CHECK_S:
+            hw_full(card)
+            hw_checked = time.monotonic()
         for p in (info.get("params") or {}).get("Props") or []:
             cv = p.get("channelVolumes")
             if not cv:
