@@ -18,8 +18,10 @@ Amp gain: AMP_GAIN_DB in /etc/huawei-speakers.conf raises the amps' channel
 volume (regs 0x08/0x09, 0.0625 dB/step, Huawei's 0x0180 = 0 dB) above Huawei's
 startup value. Measured on an MRGF-XX: +6 dB with -0.1 dBFS peaks matched
 Windows' loudness (65 dB(A) at 30 cm), and the amps start clipping around
-+9 dB, so it is capped at MAX_GAIN_DB. Keep EasyEffects' peaks at about
--2.7 dBFS (Windows' level) when using a gain above 6 dB.
++9 dB with -0.1 dBFS peaks (about +11.5 dB with peaks capped at -2.7 dBFS).
+Gains up to SAFE_GAIN_DB were tested clean; up to MAX_GAIN_DB is allowed with a
+warning, because clipping amps can damage the speakers over time. Keep
+EasyEffects' peaks at about -2.7 dBFS when using a gain above 6 dB.
 
 Usage:  huawei-speakers            run as a daemon (systemd service)
         huawei-speakers --status   show whether the amps are tuned
@@ -50,7 +52,8 @@ BANKS = [
 ]
 CHECK_REG = 0x20  # first biquad; reads 0x800000 (flat) when untuned
 CONF = "/etc/huawei-speakers.conf"
-MAX_GAIN_DB = 8.0
+MAX_GAIN_DB = 12.0
+SAFE_GAIN_DB = 8.0
 VOLUME_REGS = (0x08, 0x09)
 HUAWEI_VOLUME = 0x0180
 
@@ -250,6 +253,9 @@ def main():
             f.write(f"# amp gain above Huawei's startup level, 0..{MAX_GAIN_DB:g} dB\nAMP_GAIN_DB={gain:g}\n")
         amps.apply_gain()
         print(f"amp gain set to +{gain:g} dB")
+        if gain > SAFE_GAIN_DB:
+            print(f"warning: above +{SAFE_GAIN_DB:g} dB the amps clip on loud peaks (crackling). "
+                  "Clipping can damage the speakers over time; lower it if you hear any distortion.")
         sys.exit(0)
     if "--once" in sys.argv:
         sys.exit(0 if tune(amps) else 1)

@@ -91,8 +91,9 @@ Measured with a phone sound meter (dB(A), 30 cm), Windows played the same test
 signal about 7 dB louder than Linux at Huawei's startup amp volume, so Windows
 evidently runs the amps hotter. `sudo huawei-speakers --gain 8` raises the
 amps' channel volume by 8 dB (stored in `/etc/huawei-speakers.conf`, reapplied
-after every reload). It is capped at +8 dB because the amps audibly clip from
-about +9 dB with full-scale peaks. **With a gain above 6 dB, keep EasyEffects'
+after every reload). +8 dB was tested clean; up to +12 dB is allowed with a
+warning. With peaks at -2.7 dBFS the amps start clipping (crackling) around
++11.5 dB, and clipping can damage the speakers over time. **With a gain above 6 dB, keep EasyEffects'
 peaks at -2.7 dBFS** (all Huawei presets here use a maximizer output gain of
 -2.6 dB). Presets that peak at 0 dBFS can make the amps crackle.
 
