@@ -44,6 +44,14 @@ echo i2c-dev | sudo tee /etc/modules-load.d/huawei-speakers.conf >/dev/null
 sudo modprobe i2c-dev
 sudo systemctl daemon-reload
 sudo systemctl enable --now huawei-speakers.service
+
+say "Installing the Windows volume curve (user service)"
+install -Dm 755 volume-taper.py "$HOME/.local/bin/huawei-volume-taper"
+install -Dm 644 data/windows_volume_curve.csv "$HOME/.local/share/huawei-speakers/windows_volume_curve.csv"
+install -Dm 644 systemd/huawei-volume-taper.service "$HOME/.config/systemd/user/huawei-volume-taper.service"
+systemctl --user daemon-reload
+systemctl --user enable --now huawei-volume-taper.service
+
 sleep 8
 sudo huawei-speakers --status || true
 say "Done. Control with: sudo systemctl start|stop|status huawei-speakers"

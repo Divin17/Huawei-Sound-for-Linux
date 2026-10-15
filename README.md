@@ -59,6 +59,26 @@ It installs `/usr/local/bin/huawei-speakers`, the register data in
 `huawei-speakers.service`. You'll hear a short click when the tuning loads at
 login and after waking from sleep.
 
+## Matching Windows' sound and loudness
+
+The amps are only half of Huawei's sound. On Windows, Huawei's audio effects
+(HWVE, Histen, SmartPA) also shape the signal, and Windows uses a gentler
+volume curve. Both were measured on Windows (loopback, internal mic, volume API)
+and reproduced here:
+
+- **`huawei-volume-taper`** (user service, installed by `install.sh`) makes the
+  volume slider follow Windows' measured curve (50% = -10.4 dB, 30% = -18 dB
+  instead of Linux's -18 dB / -31 dB). It sets the speaker sink's master
+  multiplier, so the slider value you see is unchanged. 100% is untouched.
+- **`easyeffects/Huawei-Windows-Match.json`**, an EasyEffects preset fitted
+  by measurement to Huawei's processing: the frequency response matches
+  Windows within ±0.5 dB from 50 Hz to 16 kHz (+8 dB bass around 100 Hz, a
+  steep cut below 55 Hz, mid scoop, crossover dip around 2 kHz), followed by
+  2:1 compression and a limiter. Its output never exceeds what Windows sends the
+  amps (about -13 dBFS RMS / -3 dBFS peak at full scale), which is the level
+  Huawei's speaker protection allows. Copy it to
+  `~/.local/share/easyeffects/output/` and select it for the Speaker output.
+
 ## Control
 
 ```bash
