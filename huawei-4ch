@@ -19,13 +19,14 @@ REAL_USER=${SUDO_USER:-}
 USER_HOME=$(getent passwd "${REAL_USER:-$(id -un)}" | cut -d: -f6)
 WP_FILE=$USER_HOME/.config/wireplumber/wireplumber.conf.d/52-matebook-4ch.conf
 PW_FILE=$USER_HOME/.config/pipewire/pipewire.conf.d/52-matebook-4ch-crossover.conf
-USER_FILES=("$WP_FILE" "$PW_FILE")
+TAPER_DROPIN=$USER_HOME/.config/systemd/user/huawei-volume-taper.service.d/4ch.conf
+USER_FILES=("$WP_FILE" "$PW_FILE" "$TAPER_DROPIN")
 EE_RC=$USER_HOME/.config/easyeffects/db/easyeffectsrc
 OWNER=${REAL_USER:-$(id -un)}
 
 as_user() { runuser -u "$OWNER" -- env XDG_RUNTIME_DIR=/run/user/$(id -u "$OWNER") "$@"; }
 
-# Point EasyEffects' output at the 4-way crossover, or back to the default device.
+# Point EasyEffects at the 4-way crossover + pro-audio mic, or back to the normal devices.
 easyeffects_output() {   # easyeffects_output 4way|default
     [[ -f $EE_RC ]] || return 0
     as_user easyeffects -q >/dev/null 2>&1 || true
@@ -34,14 +35,16 @@ easyeffects_output() {   # easyeffects_output 4way|default
 import re, sys
 p, mode = sys.argv[1], sys.argv[2]; s = open(p).read()
 s = re.sub(r"(?m)^useDefaultOutputDevice=.*\n", "", s)
+card = "pci-0000_00_1f.3-platform-skl_hda_dsp_generic"
 if mode == "4way":
+    s = re.sub(r"(?m)^inputDevice=.*$", f"inputDevice=alsa_input.{card}.pro-input-6", s)
     s = re.sub(r"(?m)^outputDevice=.*$", "outputDevice=matebook_speakers", s)
     if "outputDevice=" not in s:
         s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\noutputDevice=matebook_speakers\n", 1)
     s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\nuseDefaultOutputDevice=false\n", 1)
 else:
-    s = re.sub(r"(?m)^outputDevice=matebook_speakers$",
-               "outputDevice=alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__Speaker__sink", s)
+    s = re.sub(r"(?m)^inputDevice=.*pro-input-6$", f"inputDevice=alsa_input.{card}.HiFi__Mic1__source", s)
+    s = re.sub(r"(?m)^outputDevice=matebook_speakers$", f"outputDevice=alsa_output.{card}.HiFi__Speaker__sink", s)
 open(p, "w").write(s)
 PY
 }
@@ -59,6 +62,7 @@ enable)
     install -m 644 "/tmp/$TPLG.new" "$TPLG_PATH" && rm -f "/tmp/$TPLG.new"
     install -D -m 644 -o "$OWNER" -g "$(id -gn "$OWNER")" pipewire/52-matebook-4ch.conf "$WP_FILE"
     install -D -m 644 -o "$OWNER" -g "$(id -gn "$OWNER")" pipewire/52-matebook-4ch-crossover.conf "$PW_FILE"
+    install -D -m 644 -o "$OWNER" -g "$(id -gn "$OWNER")" systemd/huawei-volume-taper-4ch.conf "$TAPER_DROPIN"
     easyeffects_output 4way
     cat > "$MODPROBE" <<EOF
 # Huawei MateBook speakers: 4-channel SOF topology (separate woofer/tweeter feeds).

@@ -101,7 +101,8 @@ def objects(stream):
 
 
 def main():
-    node_id, applied, card, hw_checked = None, {}, None, 0.0
+    node_id, applied, hw_checked = None, {}, 0.0
+    card = int(os.environ.get("HUAWEI_ALSA_CARD", "0"))   # also used when SINK is a virtual sink
     dump = subprocess.Popen(["stdbuf", "-oL", "pw-dump", "--monitor", "--no-colors"],
                             stdout=subprocess.PIPE, text=True)
 
