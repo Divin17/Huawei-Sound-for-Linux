@@ -239,9 +239,9 @@
             "bypass": false,
             "ceiling": -0.3,
             "input-gain": 0.0,
-            "output-gain": -2.6,
+            "output-gain": -4.1,
             "release": 200.0,
-            "threshold": -13.0
+            "threshold": -10.4
         },
         "loudness#0": {
             "bypass": false,
