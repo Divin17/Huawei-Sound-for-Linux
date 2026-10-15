@@ -17,10 +17,34 @@ MODPROBE=/etc/modprobe.d/huawei-speakers-4ch.conf
 REAL_USER=${SUDO_USER:-}
 [[ -z $REAL_USER && -n ${PKEXEC_UID:-} ]] && REAL_USER=$(id -nu "$PKEXEC_UID")
 USER_HOME=$(getent passwd "${REAL_USER:-$(id -un)}" | cut -d: -f6)
-USER_FILES=(
-    "$USER_HOME/.config/wireplumber/wireplumber.conf.d/52-matebook-4ch.conf"
-    "$USER_HOME/.config/pipewire/pipewire.conf.d/52-matebook-4ch-crossover.conf"
-)
+WP_FILE=$USER_HOME/.config/wireplumber/wireplumber.conf.d/52-matebook-4ch.conf
+PW_FILE=$USER_HOME/.config/pipewire/pipewire.conf.d/52-matebook-4ch-crossover.conf
+USER_FILES=("$WP_FILE" "$PW_FILE")
+EE_RC=$USER_HOME/.config/easyeffects/db/easyeffectsrc
+OWNER=${REAL_USER:-$(id -un)}
+
+as_user() { runuser -u "$OWNER" -- env XDG_RUNTIME_DIR=/run/user/$(id -u "$OWNER") "$@"; }
+
+# Point EasyEffects' output at the 4-way crossover, or back to the default device.
+easyeffects_output() {   # easyeffects_output 4way|default
+    [[ -f $EE_RC ]] || return 0
+    as_user easyeffects -q >/dev/null 2>&1 || true
+    sleep 2
+    python3 -I - "$EE_RC" "$1" <<'PY'
+import re, sys
+p, mode = sys.argv[1], sys.argv[2]; s = open(p).read()
+s = re.sub(r"(?m)^useDefaultOutputDevice=.*\n", "", s)
+if mode == "4way":
+    s = re.sub(r"(?m)^outputDevice=.*$", "outputDevice=matebook_speakers", s)
+    if "outputDevice=" not in s:
+        s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\noutputDevice=matebook_speakers\n", 1)
+    s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\nuseDefaultOutputDevice=false\n", 1)
+else:
+    s = re.sub(r"(?m)^outputDevice=matebook_speakers$",
+               "outputDevice=alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__Speaker__sink", s)
+open(p, "w").write(s)
+PY
+}
 
 need_root() { [[ $EUID -eq 0 ]] || { echo "run with sudo"; exit 1; }; }
 
@@ -33,17 +57,21 @@ enable)
     need_root
     python3 -I tools/make_4ch_topology.py "/tmp/$TPLG.new"
     install -m 644 "/tmp/$TPLG.new" "$TPLG_PATH" && rm -f "/tmp/$TPLG.new"
+    install -D -m 644 -o "$OWNER" -g "$(id -gn "$OWNER")" pipewire/52-matebook-4ch.conf "$WP_FILE"
+    install -D -m 644 -o "$OWNER" -g "$(id -gn "$OWNER")" pipewire/52-matebook-4ch-crossover.conf "$PW_FILE"
+    easyeffects_output 4way
     cat > "$MODPROBE" <<EOF
 # Huawei MateBook speakers: 4-channel SOF topology (separate woofer/tweeter feeds).
 # Remove with: sudo huawei-4ch disable   (then reboot)
 options snd_sof tplg_filename=$TPLG
 EOF
-    echo "4-channel topology installed. Reboot to activate."
+    echo "4-channel mode installed (topology, PipeWire crossover, EasyEffects output). Reboot to activate."
     ;;
 disable)
     need_root
     rm -f "$MODPROBE"
     for f in "${USER_FILES[@]}"; do if [[ -e $f ]]; then rm -f "$f"; echo "removed $f"; fi; done
+    easyeffects_output default
     echo "Stock 2-channel setup restored. Reboot to activate."
     ;;
 status)
