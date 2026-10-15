@@ -78,6 +78,12 @@ and reproduced here:
   amps (about -13 dBFS RMS / -3 dBFS peak at full scale), which is the level
   Huawei's speaker protection allows. Copy it to
   `~/.local/share/easyeffects/output/` and select it for the Speaker output.
+- **`easyeffects/Huawei-Histen-Bass.json`** (recommended, sounds best): a
+  musical preset with Huawei-style level-dependent bass. A bass-only compressor
+  (below 250 Hz) lifts quiet bass and holds loud bass back, giving about
+  +20 / +9 / +3 dB at 100 Hz for quiet / medium / loud input (Windows measured
+  +19.6 / +9.5 / +3.5). Peaks reach about -0.1 dBFS, about 2.6 dB above
+  Windows' measured woofer peak, so avoid long full-volume bass-heavy playback.
 
 ## Control
 
