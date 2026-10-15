@@ -1,0 +1,11 @@
+[Unit]
+Description=Huawei MateBook speaker amp tuning (crossover/EQ for the RT9119 smart amps)
+After=sound.target systemd-modules-load.service
+
+[Service]
+ExecStart=/usr/local/bin/huawei-speakers
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
