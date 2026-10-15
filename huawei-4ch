@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Switch the MateBook speakers between the stock 2-channel setup and a
+# Windows-style 4-channel setup (separate woofer and tweeter signals).
+#
+#   sudo huawei-4ch enable    build + install the 4-channel SOF topology, then reboot
+#   sudo huawei-4ch disable   back to the stock topology and 2-channel setup, then reboot
+#   huawei-4ch status         show what is active
+#
+# Fully reversible: 'disable' removes every file 'enable' added except the
+# topology file itself, which is inert unless selected.
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+TPLG=sof-hda-generic-4ch-matebook.tplg
+TPLG_PATH=/lib/firmware/intel/sof-tplg/$TPLG
+MODPROBE=/etc/modprobe.d/huawei-speakers-4ch.conf
+REAL_USER=${SUDO_USER:-}
+[[ -z $REAL_USER && -n ${PKEXEC_UID:-} ]] && REAL_USER=$(id -nu "$PKEXEC_UID")
+USER_HOME=$(getent passwd "${REAL_USER:-$(id -un)}" | cut -d: -f6)
+USER_FILES=(
+    "$USER_HOME/.config/wireplumber/wireplumber.conf.d/52-matebook-4ch.conf"
+    "$USER_HOME/.config/pipewire/pipewire.conf.d/52-matebook-4ch-crossover.conf"
+)
+
+need_root() { [[ $EUID -eq 0 ]] || { echo "run with sudo"; exit 1; }; }
+
+active_topology() {
+    journalctl -k -b --no-pager -o cat 2>/dev/null | grep -o 'loading topology: [^ ]*' | tail -1 | sed 's/.*: //'
+}
+
+case "${1:-status}" in
+enable)
+    need_root
+    python3 -I tools/make_4ch_topology.py "/tmp/$TPLG.new"
+    install -m 644 "/tmp/$TPLG.new" "$TPLG_PATH" && rm -f "/tmp/$TPLG.new"
+    cat > "$MODPROBE" <<EOF
+# Huawei MateBook speakers: 4-channel SOF topology (separate woofer/tweeter feeds).
+# Remove with: sudo huawei-4ch disable   (then reboot)
+options snd_sof tplg_filename=$TPLG
+EOF
+    echo "4-channel topology installed. Reboot to activate."
+    ;;
+disable)
+    need_root
+    rm -f "$MODPROBE"
+    for f in "${USER_FILES[@]}"; do if [[ -e $f ]]; then rm -f "$f"; echo "removed $f"; fi; done
+    echo "Stock 2-channel setup restored. Reboot to activate."
+    ;;
+status)
+    echo "configured: $([[ -e $MODPROBE ]] && echo "4-channel ($MODPROBE)" || echo "stock 2-channel")"
+    t=$(active_topology)
+    echo "loaded now: ${t:-unknown}"
+    for f in "${USER_FILES[@]}"; do [[ -e $f ]] && echo "pipewire:   $f"; done
+    true
+    ;;
+*) sed -n '2,11p' "$0"; exit 1 ;;
+esac
