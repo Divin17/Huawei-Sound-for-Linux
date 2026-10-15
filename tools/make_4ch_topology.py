@@ -7,6 +7,9 @@ Speaker"). Windows drives the same codec with 4 channels: woofers and
 tweeters get separate signals. This script changes only:
   - PCM capabilities 'Playback 0' and 'Playback 31': channels_max 2 -> 4
   - the six playback buffers on that path: 768 -> 1536 bytes
+  - the HDA codec link 'Analog Playback and Capture' channels (token1501): 2 -> 4
+    (left at 2, the firmware frames a 4-channel stream as 2-channel: robotic
+    sound. The headset-jack mic shares this link and may not work in 4-ch mode.)
 
 Safety: it decodes the installed topology, repairs what `alsatplg --decode`
 loses (negative TLV minimums, widget pipeline indices, BE hw_configs), and
@@ -79,8 +82,11 @@ def edit(text):
     for buf in BUFFERS:
         text, k = re.subn(r"(\t'" + re.escape(buf) + r":tuple0' \{.*?token100 )768(\n)", r"\g<1>1536\2", text, count=1, flags=re.S)
         n += k
-    if n != len(CAPS) + len(BUFFERS):
-        raise SystemExit(f"expected {len(CAPS) + len(BUFFERS)} edits, made {n}: topology layout differs, aborting")
+    text, k = re.subn(r"(\t'Analog Playback and Capture:tuple0' \{.*?token1501 )2(\n)", r"\g<1>4\2",
+                      text, count=1, flags=re.S)
+    n += k
+    if n != len(CAPS) + len(BUFFERS) + 1:
+        raise SystemExit(f"expected {len(CAPS) + len(BUFFERS) + 1} edits, made {n}: topology layout differs, aborting")
     return text
 
 
