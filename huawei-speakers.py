@@ -14,9 +14,17 @@ session during the load. The amps keep the coefficients when audio stops, but
 lose them across suspend or power loss; the daemon checks every few seconds
 and reloads when needed.
 
+Amp gain: AMP_GAIN_DB in /etc/huawei-speakers.conf raises the amps' channel
+volume (regs 0x08/0x09, 0.0625 dB/step, Huawei's 0x0180 = 0 dB) above Huawei's
+startup value. Measured on an MRGF-XX: +6 dB with -0.1 dBFS peaks matched
+Windows' loudness (65 dB(A) at 30 cm), and the amps start clipping around
++9 dB, so it is capped at MAX_GAIN_DB. Keep EasyEffects' peaks at about
+-2.7 dBFS (Windows' level) when using a gain above 6 dB.
+
 Usage:  huawei-speakers            run as a daemon (systemd service)
         huawei-speakers --status   show whether the amps are tuned
         huawei-speakers --once     load the tuning now and exit
+        huawei-speakers --gain DB  set and apply the amp gain (0..MAX_GAIN_DB)
 """
 
 import ctypes
@@ -41,6 +49,27 @@ BANKS = [
     ("tweeter", "I2C2", (0x1B,), "TWEETER_RT9119.seq", (0x0F, 0x19)),
 ]
 CHECK_REG = 0x20  # first biquad; reads 0x800000 (flat) when untuned
+CONF = "/etc/huawei-speakers.conf"
+MAX_GAIN_DB = 8.0
+VOLUME_REGS = (0x08, 0x09)
+HUAWEI_VOLUME = 0x0180
+
+
+def read_gain():
+    try:
+        with open(CONF) as f:
+            for line in f:
+                k, _, v = line.partition("=")
+                if k.strip() == "AMP_GAIN_DB":
+                    return max(0.0, min(MAX_GAIN_DB, float(v.strip())))
+    except (OSError, ValueError):
+        pass
+    return 0.0
+
+
+def volume_bytes(gain_db):
+    v = HUAWEI_VOLUME - round(gain_db * 16)
+    return bytes([v >> 8, v & 0xFF])
 
 I2C_RDWR = 0x0707
 I2C_M_RD = 0x0001
@@ -112,12 +141,21 @@ class Amps:
 
     def expected(self):
         """[(label, bus, addr, reg, data)] for every register the tuning sets."""
-        out = []
+        out, vol = [], volume_bytes(read_gain())
         for name, bus, addrs, seq, scenes in self.banks:
             for scene, chip, reg, _, data in seq:
                 if scene in scenes and reg != 0x80:
+                    if reg in VOLUME_REGS and data == volume_bytes(0):
+                        data = vol
                     out.append((f"{name}{chip}", bus, addrs[chip], reg, data))
         return out
+
+    def apply_gain(self):
+        vol = volume_bytes(read_gain())
+        for _, bus, addrs, _, _ in self.banks:
+            for addr in addrs:
+                for reg in VOLUME_REGS:
+                    bus.write(addr, bytes([reg]) + vol)
 
     def tuned(self):
         try:
@@ -145,6 +183,7 @@ class Amps:
                         bus.write(addrs[chip], bytes([reg]) + data)
                         if delay:
                             time.sleep(delay / 1000)
+        self.apply_gain()
 
 
 def user_session():
@@ -191,7 +230,7 @@ def tune(amps):
     if bad:
         log(f"tuning did not stick ({len(bad)} registers differ, e.g. {bad[0]}); will retry")
         return False
-    log(f"speaker tuning loaded (clock from {user}'s audio session)")
+    log(f"speaker tuning loaded (clock from {user}'s audio session), amp gain +{read_gain():g} dB")
     return True
 
 
@@ -203,6 +242,15 @@ def main():
         bad = amps.mismatches()
         print("tuned" if not bad else f"NOT tuned: {len(bad)} registers differ ({', '.join(bad[:4])}...)")
         sys.exit(0 if not bad else 1)
+    if "--gain" in sys.argv:
+        gain = float(sys.argv[sys.argv.index("--gain") + 1])
+        if not 0 <= gain <= MAX_GAIN_DB:
+            sys.exit(f"gain must be 0..{MAX_GAIN_DB:g} dB")
+        with open(CONF, "w") as f:
+            f.write(f"# amp gain above Huawei's startup level, 0..{MAX_GAIN_DB:g} dB\nAMP_GAIN_DB={gain:g}\n")
+        amps.apply_gain()
+        print(f"amp gain set to +{gain:g} dB")
+        sys.exit(0)
     if "--once" in sys.argv:
         sys.exit(0 if tune(amps) else 1)
 

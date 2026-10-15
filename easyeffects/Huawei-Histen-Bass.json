@@ -238,7 +238,7 @@
             "bypass": false,
             "ceiling": -0.3,
             "input-gain": 0.0,
-            "output-gain": 0.0,
+            "output-gain": -2.6,
             "release": 150.0,
             "threshold": -18.0
         },

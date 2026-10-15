@@ -85,6 +85,21 @@ and reproduced here:
   +19.6 / +9.5 / +3.5). Peaks reach about -0.1 dBFS, about 2.6 dB above
   Windows' measured woofer peak, so avoid long full-volume bass-heavy playback.
 
+### Amp gain and acoustic match
+
+Measured with a phone sound meter (dB(A), 30 cm), Windows played the same test
+signal about 7 dB louder than Linux at Huawei's startup amp volume, so Windows
+evidently runs the amps hotter. `sudo huawei-speakers --gain 8` raises the
+amps' channel volume by 8 dB (stored in `/etc/huawei-speakers.conf`, reapplied
+after every reload). It is capped at +8 dB because the amps audibly clip from
+about +9 dB with full-scale peaks. **With a gain above 6 dB, keep EasyEffects'
+peaks at -2.7 dBFS** (all Huawei presets here use a maximizer output gain of
+-2.6 dB). Presets that peak at 0 dBFS can make the amps crackle.
+
+`easyeffects/Huawei-Acoustic-Match.json` is Histen-Bass plus a correction EQ
+fitted with the laptop's microphone to the tonal balance Windows produced
+through the same microphone (more bass, fewer mids).
+
 ## Control
 
 ```bash
