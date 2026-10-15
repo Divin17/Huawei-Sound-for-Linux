@@ -27,6 +27,14 @@ Usage:  huawei-speakers            run as a daemon (systemd service)
         huawei-speakers --status   show whether the amps are tuned
         huawei-speakers --once     load the tuning now and exit
         huawei-speakers --gain DB  set and apply the amp gain (0..MAX_GAIN_DB)
+        huawei-speakers --woofer-mode 1|2   flat woofer amps (1) or Huawei's mode-2 EQ (2)
+
+Woofer mode: WOOFER_MODE in /etc/huawei-speakers.conf. Mode 2 (default) loads
+Huawei's full amp EQ, which includes a 100 Hz high-pass in the woofer amps.
+Mode 1 is the same scene without the amp filters (flat woofers); use it only
+with a preset that high-passes the woofer feed itself (Huawei's processing
+uses a 4th-order 80 Hz high-pass and a 45 Hz notch, as Huawei-Exact does).
+The tweeter amp always uses mode 2 (its 3 kHz high-pass protects it).
 """
 
 import ctypes
@@ -44,13 +52,13 @@ RUN_DIR = "/run/huawei-speakers"
 POLL_S = 5
 RETRY_S = 30
 
-# bank -> ACPI I2C controller, chip addresses (chip0, chip1), sequence file,
-# scenes to play in order (Huawei mode 2 = full EQ, then 0x19 = unmute)
+# bank -> ACPI I2C controller, chip addresses (chip0, chip1), sequence file
 BANKS = [
-    ("woofer", "I2C5", (0x1A, 0x1B), "WOOFER_RT9119.seq", (0x0D, 0x0E, 0x19)),
-    ("tweeter", "I2C2", (0x1B,), "TWEETER_RT9119.seq", (0x0F, 0x19)),
+    ("woofer", "I2C5", (0x1A, 0x1B), "WOOFER_RT9119.seq"),
+    ("tweeter", "I2C2", (0x1B,), "TWEETER_RT9119.seq"),
 ]
-CHECK_REG = 0x20  # first biquad; reads 0x800000 (flat) when untuned
+CHECK_REG = 0x20  # first biquad; reads FLAT_BIQUAD after a reset
+FLAT_BIQUAD = bytes([0x00, 0x80, 0x00, 0x00]) + bytes(16)   # b0 = 1.0, rest 0
 CONF = "/etc/huawei-speakers.conf"
 MAX_GAIN_DB = 12.0
 SAFE_GAIN_DB = 8.0
@@ -58,16 +66,45 @@ VOLUME_REGS = (0x08, 0x09)
 HUAWEI_VOLUME = 0x0180
 
 
-def read_gain():
+def read_conf():
+    conf = {}
     try:
         with open(CONF) as f:
             for line in f:
-                k, _, v = line.partition("=")
-                if k.strip() == "AMP_GAIN_DB":
-                    return max(0.0, min(MAX_GAIN_DB, float(v.strip())))
-    except (OSError, ValueError):
+                if "=" in line and not line.lstrip().startswith("#"):
+                    k, _, v = line.partition("=")
+                    conf[k.strip()] = v.strip()
+    except OSError:
         pass
-    return 0.0
+    return conf
+
+
+def write_conf(**updates):
+    conf = read_conf(); conf.update({k: str(v) for k, v in updates.items()})
+    with open(CONF, "w") as f:
+        f.write(f"# huawei-speakers settings\n# AMP_GAIN_DB: 0..{MAX_GAIN_DB:g} dB above Huawei's startup amp volume\n"
+                "# WOOFER_MODE: 2 = Huawei's amp EQ (incl. 100 Hz high-pass), 1 = flat woofer amps\n")
+        for k, v in conf.items():
+            f.write(f"{k}={v}\n")
+
+
+def read_gain():
+    try:
+        return max(0.0, min(MAX_GAIN_DB, float(read_conf().get("AMP_GAIN_DB", 0))))
+    except ValueError:
+        return 0.0
+
+
+def woofer_mode():
+    return 1 if read_conf().get("WOOFER_MODE", "2").strip() == "1" else 2
+
+
+def scenes_for(name):
+    """Huawei scenes to play for a bank: id = mode * 6 + position, then 0x19 = unmute."""
+    if name == "woofer":
+        m = woofer_mode()
+        return (m * 6 + 1, m * 6 + 2, 0x19)
+    return (0x0F, 0x19)
 
 
 def volume_bytes(gain_db):
@@ -138,14 +175,18 @@ def load_seq(path):
 class Amps:
     def __init__(self):
         self.banks = []
-        for name, acpi, addrs, seqfile, scenes in BANKS:
+        for name, acpi, addrs, seqfile in BANKS:
             seq = load_seq(os.path.join(DATA_DIR, seqfile))
-            self.banks.append((name, Bus(acpi), addrs, seq, scenes))
+            self.banks.append((name, Bus(acpi), addrs, seq))
 
     def expected(self):
         """[(label, bus, addr, reg, data)] for every register the tuning sets."""
         out, vol = [], volume_bytes(read_gain())
-        for name, bus, addrs, seq, scenes in self.banks:
+        for name, bus, addrs, seq in self.banks:
+            scenes = scenes_for(name)
+            if not any(scene in scenes and reg == CHECK_REG for scene, _, reg, _, _ in seq):
+                for chip in range(len(addrs)):       # flat mode: the reset leaves the biquads flat
+                    out.append((f"{name}{chip}", bus, addrs[chip], CHECK_REG, FLAT_BIQUAD))
             for scene, chip, reg, _, data in seq:
                 if scene in scenes and reg != 0x80:
                     if reg in VOLUME_REGS and data == volume_bytes(0):
@@ -155,7 +196,7 @@ class Amps:
 
     def apply_gain(self):
         vol = volume_bytes(read_gain())
-        for _, bus, addrs, _, _ in self.banks:
+        for _, bus, addrs, _ in self.banks:
             for addr in addrs:
                 for reg in VOLUME_REGS:
                     bus.write(addr, bytes([reg]) + vol)
@@ -179,8 +220,8 @@ class Amps:
         return bad
 
     def load(self):
-        for name, bus, addrs, seq, scenes in self.banks:
-            for want in scenes:
+        for name, bus, addrs, seq in self.banks:
+            for want in scenes_for(name):
                 for scene, chip, reg, delay, data in seq:
                     if scene == want:
                         bus.write(addrs[chip], bytes([reg]) + data)
@@ -233,7 +274,8 @@ def tune(amps):
     if bad:
         log(f"tuning did not stick ({len(bad)} registers differ, e.g. {bad[0]}); will retry")
         return False
-    log(f"speaker tuning loaded (clock from {user}'s audio session), amp gain +{read_gain():g} dB")
+    log(f"speaker tuning loaded (clock from {user}'s audio session), amp gain +{read_gain():g} dB, "
+        f"woofer mode {woofer_mode()}")
     return True
 
 
@@ -249,14 +291,21 @@ def main():
         gain = float(sys.argv[sys.argv.index("--gain") + 1])
         if not 0 <= gain <= MAX_GAIN_DB:
             sys.exit(f"gain must be 0..{MAX_GAIN_DB:g} dB")
-        with open(CONF, "w") as f:
-            f.write(f"# amp gain above Huawei's startup level, 0..{MAX_GAIN_DB:g} dB\nAMP_GAIN_DB={gain:g}\n")
+        write_conf(AMP_GAIN_DB=f"{gain:g}")
         amps.apply_gain()
         print(f"amp gain set to +{gain:g} dB")
         if gain > SAFE_GAIN_DB:
             print(f"warning: above +{SAFE_GAIN_DB:g} dB the amps clip on loud peaks (crackling). "
                   "Clipping can damage the speakers over time; lower it if you hear any distortion.")
         sys.exit(0)
+    if "--woofer-mode" in sys.argv:
+        mode = sys.argv[sys.argv.index("--woofer-mode") + 1]
+        if mode not in ("1", "2"):
+            sys.exit("woofer mode must be 1 (flat) or 2 (Huawei amp EQ)")
+        write_conf(WOOFER_MODE=mode)
+        ok = tune(amps)
+        print(f"woofer mode {mode} " + ("loaded" if ok else "saved; the service will load it when audio can play"))
+        sys.exit(0 if ok else 1)
     if "--once" in sys.argv:
         sys.exit(0 if tune(amps) else 1)
 
