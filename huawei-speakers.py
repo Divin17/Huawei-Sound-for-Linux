@@ -36,12 +36,15 @@ Mode 1 is the same scene without the amp filters (flat woofers); use it only
 with a preset that high-passes the woofer feed itself (Huawei's processing
 uses a 4th-order 80 Hz high-pass and a 45 Hz notch, as Huawei-Exact does).
 
-Tweeter mode: TWEETER_MODE. Mode 2 (default) loads the tweeter amp's 3 kHz
-high-pass and 3.5-4 kHz notch. In 4-channel mode the software crossover
-already high-passes the tweeter feed (2.4 kHz, 24 dB/oct), so the amp filters
-cut 6-10 dB too much at 2-4 kHz (measured with the mic against Windows). Mode 1
-drops them. Mode 1 is only honoured while the 4-channel SOF topology is loaded;
-otherwise the tweeters would get the full-range signal, so mode 2 is used.
+Tweeter mode: TWEETER_MODE. Mode 2 loads the tweeter amp's 3 kHz high-pass and
+3.5-4 kHz notch. In 4-channel mode the software crossover already high-passes
+the tweeter feed (2.4 kHz, 24 dB/oct), and mode 1 (flat amp) is the default:
+measured with the mic against Windows, mode 2 peaks +7 dB at 5-5.7 kHz while
+mode 1 stays within 2 dB from 4.5 to 10 kHz. Mode 1 is only honoured while the
+4-channel SOF topology is loaded; otherwise the tweeters would get the
+full-range signal, so mode 2 is used. After each load the crossover's tweeter
+polarity is set to match: inverted for mode 1 (woofers and tweeters otherwise
+cancel around 3 kHz), normal for mode 2.
 """
 
 import ctypes
@@ -68,6 +71,7 @@ CHECK_REG = 0x20  # first biquad; reads FLAT_BIQUAD after a reset
 FLAT_BIQUAD = bytes([0x00, 0x80, 0x00, 0x00]) + bytes(16)   # b0 = 1.0, rest 0
 CONF = "/etc/huawei-speakers.conf"
 FOURCH_TPLG = "sof-hda-generic-4ch-matebook.tplg"
+CROSSOVER_NODE = "matebook_speakers"   # filter-chain sink from 52-matebook-4ch-crossover.conf
 MAX_GAIN_DB = 12.0
 SAFE_GAIN_DB = 8.0
 VOLUME_REGS = (0x08, 0x09)
@@ -92,7 +96,7 @@ def write_conf(**updates):
     with open(CONF, "w") as f:
         f.write(f"# huawei-speakers settings\n# AMP_GAIN_DB: 0..{MAX_GAIN_DB:g} dB above Huawei's startup amp volume\n"
                 "# WOOFER_MODE: 2 = Huawei's amp EQ (incl. 100 Hz high-pass), 1 = flat woofer amps\n"
-                "# TWEETER_MODE: 2 = Huawei's amp EQ (3 kHz high-pass), 1 = flat (4-channel mode only)\n")
+                "# TWEETER_MODE: 1 = flat (default, 4-channel mode only), 2 = Huawei's amp EQ (3 kHz high-pass)\n")
         for k, v in conf.items():
             f.write(f"{k}={v}\n")
 
@@ -118,8 +122,9 @@ def fourch_active():
 
 
 def tweeter_mode():
-    want = 1 if read_conf().get("TWEETER_MODE", "2").strip() == "1" else 2
-    return want if want == 2 or fourch_active() else 2
+    if not fourch_active():
+        return 2
+    return 2 if read_conf().get("TWEETER_MODE", "1").strip() == "2" else 1
 
 
 def scenes_for(name):
@@ -277,6 +282,17 @@ def silence_file(seconds=4):
     return path
 
 
+def set_tweeter_polarity(user, runtime):
+    """Invert the crossover's tweeter feed for tweeter mode 1, normal for mode 2 (4-channel mode)."""
+    if not fourch_active():
+        return
+    mult = -1.0 if tweeter_mode() == 1 else 1.0
+    subprocess.run(
+        ["runuser", "-u", user, "--", "env", f"XDG_RUNTIME_DIR={runtime}", "pw-cli", "s",
+         CROSSOVER_NODE, "Props", f'{{ params = [ "pL:Mult" {mult} "pR:Mult" {mult} ] }}'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
 def tune(amps):
     """Play silence in the user's session and load the tuning. True on success."""
     session = user_session()
@@ -297,6 +313,7 @@ def tune(amps):
     if bad:
         log(f"tuning did not stick ({len(bad)} registers differ, e.g. {bad[0]}); will retry")
         return False
+    set_tweeter_polarity(user, runtime)
     log(f"speaker tuning loaded (clock from {user}'s audio session), amp gain +{read_gain():g} dB, "
         f"woofer mode {woofer_mode()}, tweeter mode {tweeter_mode()}")
     return True

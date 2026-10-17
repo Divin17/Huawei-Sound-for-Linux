@@ -92,6 +92,15 @@ feeds like Windows: a 3 kHz / 2.4 kHz crossover with a limiter per speaker pair
 at Windows' measured ceilings (woofer -0.3 dBFS, tweeter -6.9 dBFS peak; the presets' own limiter keeps woofer peaks at -1 dBFS except Huawei-Kick).
 `sudo huawei-4ch disable` undoes it.
 
+In 4-channel mode the tweeter amp runs flat (`huawei-speakers --tweeter-mode 1`, the
+default there) and the crossover inverts the tweeter feed: measured with the built-in
+mics against Windows' recording through the same mics, the amp's own high-pass/notch
+(mode 2) leaves a +7 dB peak at 5-5.7 kHz, and without the inversion woofers and
+tweeters cancel 4-11 dB at 2.2-4.5 kHz. The crossover also holds a 4-band acoustic
+correction (445 Hz +4, 870 Hz -3.25, 5.4 kHz -4, 10.5 kHz +4 dB) for all presets:
+300 Hz-14 kHz deviation from Windows 3.7 -> 1.5 dB RMS. `sudo huawei-speakers
+--tweeter-mode 2` goes back to the amp filter (and normal tweeter polarity).
+
 Use **`easyeffects/Huawei-Normal.json`** with it, together with
 `sudo huawei-speakers --gain 8`. It is Huawei's measured chain and nothing
 more: 3-band compressor (300 Hz / 3 kHz, bass release 30 ms) → 15-band voicing
