@@ -107,6 +107,10 @@ attack 3 ms. Pumping and crackle measure the same as Huawei-Windows; drum hits
 are slightly softer (punch 5.6 vs 7.3 dB), because kick peaks can't rise above
 the woofer ceiling. Switch back to Huawei-Windows any time.
 
+**`easyeffects/Huawei-Windows-Bass-Strong.json`** goes further: about +5 / +3.5 /
++1.5 dB bass at quiet / normal / loud levels (bass makeup 6.5 dB, ratio 4.5,
+attack 3 ms). Kick pumping 2.4 dB, IMD -78 dB (inaudible), punch 4.1 dB.
+
 ### Amp gain and acoustic match
 
 Measured with a phone sound meter (dB(A), 30 cm), Windows played the same test
