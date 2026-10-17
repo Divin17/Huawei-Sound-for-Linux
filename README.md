@@ -101,6 +101,12 @@ input level from -40 to -10 dBFS (frequency response 0.5 dB RMS), recovers bass
 after a loud note at Windows' speed, and its peaks stay at Windows' per-speaker
 ceilings.
 
+**`easyeffects/Huawei-Windows-Bass.json`** is the same with about +3 dB more bass
+at quiet and normal levels (+1.5 dB when loud): bass makeup 4.5 dB, ratio 4,
+attack 3 ms. Pumping and crackle measure the same as Huawei-Windows; drum hits
+are slightly softer (punch 5.6 vs 7.3 dB), because kick peaks can't rise above
+the woofer ceiling. Switch back to Huawei-Windows any time.
+
 ### Amp gain and acoustic match
 
 Measured with a phone sound meter (dB(A), 30 cm), Windows played the same test
