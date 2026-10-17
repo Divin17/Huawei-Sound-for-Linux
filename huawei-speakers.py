@@ -28,13 +28,20 @@ Usage:  huawei-speakers            run as a daemon (systemd service)
         huawei-speakers --once     load the tuning now and exit
         huawei-speakers --gain DB  set and apply the amp gain (0..MAX_GAIN_DB)
         huawei-speakers --woofer-mode 1|2   flat woofer amps (1) or Huawei's mode-2 EQ (2)
+        huawei-speakers --tweeter-mode 1|2  flat tweeter amp (1, 4-channel mode only) or mode-2 EQ (2)
 
 Woofer mode: WOOFER_MODE in /etc/huawei-speakers.conf. Mode 2 (default) loads
 Huawei's full amp EQ, which includes a 100 Hz high-pass in the woofer amps.
 Mode 1 is the same scene without the amp filters (flat woofers); use it only
 with a preset that high-passes the woofer feed itself (Huawei's processing
 uses a 4th-order 80 Hz high-pass and a 45 Hz notch, as Huawei-Exact does).
-The tweeter amp always uses mode 2 (its 3 kHz high-pass protects it).
+
+Tweeter mode: TWEETER_MODE. Mode 2 (default) loads the tweeter amp's 3 kHz
+high-pass and 3.5-4 kHz notch. In 4-channel mode the software crossover
+already high-passes the tweeter feed (2.4 kHz, 24 dB/oct), so the amp filters
+cut 6-10 dB too much at 2-4 kHz (measured with the mic against Windows). Mode 1
+drops them. Mode 1 is only honoured while the 4-channel SOF topology is loaded;
+otherwise the tweeters would get the full-range signal, so mode 2 is used.
 """
 
 import ctypes
@@ -60,6 +67,7 @@ BANKS = [
 CHECK_REG = 0x20  # first biquad; reads FLAT_BIQUAD after a reset
 FLAT_BIQUAD = bytes([0x00, 0x80, 0x00, 0x00]) + bytes(16)   # b0 = 1.0, rest 0
 CONF = "/etc/huawei-speakers.conf"
+FOURCH_TPLG = "sof-hda-generic-4ch-matebook.tplg"
 MAX_GAIN_DB = 12.0
 SAFE_GAIN_DB = 8.0
 VOLUME_REGS = (0x08, 0x09)
@@ -83,7 +91,8 @@ def write_conf(**updates):
     conf = read_conf(); conf.update({k: str(v) for k, v in updates.items()})
     with open(CONF, "w") as f:
         f.write(f"# huawei-speakers settings\n# AMP_GAIN_DB: 0..{MAX_GAIN_DB:g} dB above Huawei's startup amp volume\n"
-                "# WOOFER_MODE: 2 = Huawei's amp EQ (incl. 100 Hz high-pass), 1 = flat woofer amps\n")
+                "# WOOFER_MODE: 2 = Huawei's amp EQ (incl. 100 Hz high-pass), 1 = flat woofer amps\n"
+                "# TWEETER_MODE: 2 = Huawei's amp EQ (3 kHz high-pass), 1 = flat (4-channel mode only)\n")
         for k, v in conf.items():
             f.write(f"{k}={v}\n")
 
@@ -99,12 +108,26 @@ def woofer_mode():
     return 1 if read_conf().get("WOOFER_MODE", "2").strip() == "1" else 2
 
 
+def fourch_active():
+    """True while the 4-channel topology (separate, crossed-over tweeter feed) is loaded."""
+    try:
+        with open("/sys/module/snd_sof/parameters/tplg_filename") as f:
+            return f.read().strip() == FOURCH_TPLG
+    except OSError:
+        return False
+
+
+def tweeter_mode():
+    want = 1 if read_conf().get("TWEETER_MODE", "2").strip() == "1" else 2
+    return want if want == 2 or fourch_active() else 2
+
+
 def scenes_for(name):
     """Huawei scenes to play for a bank: id = mode * 6 + position, then 0x19 = unmute."""
     if name == "woofer":
         m = woofer_mode()
         return (m * 6 + 1, m * 6 + 2, 0x19)
-    return (0x0F, 0x19)
+    return (tweeter_mode() * 6 + 3, 0x19)
 
 
 def volume_bytes(gain_db):
@@ -275,7 +298,7 @@ def tune(amps):
         log(f"tuning did not stick ({len(bad)} registers differ, e.g. {bad[0]}); will retry")
         return False
     log(f"speaker tuning loaded (clock from {user}'s audio session), amp gain +{read_gain():g} dB, "
-        f"woofer mode {woofer_mode()}")
+        f"woofer mode {woofer_mode()}, tweeter mode {tweeter_mode()}")
     return True
 
 
@@ -305,6 +328,17 @@ def main():
         write_conf(WOOFER_MODE=mode)
         ok = tune(amps)
         print(f"woofer mode {mode} " + ("loaded" if ok else "saved; the service will load it when audio can play"))
+        sys.exit(0 if ok else 1)
+    if "--tweeter-mode" in sys.argv:
+        mode = sys.argv[sys.argv.index("--tweeter-mode") + 1]
+        if mode not in ("1", "2"):
+            sys.exit("tweeter mode must be 1 (flat, 4-channel mode only) or 2 (Huawei amp EQ)")
+        if mode == "1" and not fourch_active():
+            sys.exit("tweeter mode 1 needs 4-channel mode (sudo huawei-4ch enable, then reboot): "
+                     "without the software crossover the tweeters would get bass")
+        write_conf(TWEETER_MODE=mode)
+        ok = tune(amps)
+        print(f"tweeter mode {mode} " + ("loaded" if ok else "saved; the service will load it when audio can play"))
         sys.exit(0 if ok else 1)
     if "--once" in sys.argv:
         sys.exit(0 if tune(amps) else 1)

@@ -75,6 +75,11 @@ EOF
 disable)
     need_root
     rm -f "$MODPROBE"
+    # the tweeters lose their software crossover: back to the amp's own high-pass
+    if grep -q '^TWEETER_MODE=1' /etc/huawei-speakers.conf 2>/dev/null; then
+        sed -i 's/^TWEETER_MODE=1/TWEETER_MODE=2/' /etc/huawei-speakers.conf
+        echo "tweeter amp back to mode 2 (its own high-pass)"
+    fi
     for f in "${USER_FILES[@]}"; do if [[ -e $f ]]; then rm -f "$f"; echo "removed $f"; fi; done
     easyeffects_output default
     echo "Stock 2-channel setup restored. Reboot to activate."
