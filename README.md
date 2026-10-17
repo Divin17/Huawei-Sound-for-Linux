@@ -85,6 +85,22 @@ and reproduced here:
   +19.6 / +9.5 / +3.5). Peaks reach about -0.1 dBFS, about 2.6 dB above
   Windows' measured woofer peak, so avoid long full-volume bass-heavy playback.
 
+### 4-channel mode (recommended): `Huawei-Windows`
+
+`sudo huawei-4ch enable` (then reboot) gives the woofers and tweeters separate
+feeds like Windows: a 3 kHz / 2.4 kHz crossover with a limiter per speaker pair
+at Windows' measured ceilings (woofer -2.7 dBFS, tweeter -6.9 dBFS peak).
+`sudo huawei-4ch disable` undoes it.
+
+Use **`easyeffects/Huawei-Windows.json`** with it, together with
+`sudo huawei-speakers --gain 8`. It is Huawei's measured chain and nothing
+more: 3-band compressor (300 Hz / 3 kHz, bass release 30 ms) → 15-band voicing
+EQ → limiter at -1 dBFS. Played with Windows' own test signals and compared
+with Windows' loopback recordings, it matches within 1 dB per band at every
+input level from -40 to -10 dBFS (frequency response 0.5 dB RMS), recovers bass
+after a loud note at Windows' speed, and its peaks stay at Windows' per-speaker
+ceilings.
+
 ### Amp gain and acoustic match
 
 Measured with a phone sound meter (dB(A), 30 cm), Windows played the same test
