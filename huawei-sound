@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Switch between the Huawei EasyEffects presets.
+#
+#   huawei-sound           cycle to the next preset (bound to Ctrl+Alt+B)
+#   huawei-sound <n|name>  pick one: 1 = normal, 2 = bass, 3 = strong bass
+#   huawei-sound status    show the active preset
+set -euo pipefail
+
+PRESETS=(Huawei-Normal Huawei-Bass Huawei-MaxBass)
+LABELS=("Huawei sound" "Huawei sound + bass" "Huawei sound + strong bass")
+
+current() { easyeffects -a output 2>/dev/null | head -1; }
+
+notify() {
+    command -v notify-send >/dev/null || return 0
+    notify-send -a "Huawei sound" -i audio-speakers -t 1500 \
+        -h string:x-canonical-private-synchronous:huawei-sound "$1" "$2"
+}
+
+# EasyEffects must be running in the background, or 'easyeffects -l' opens a window and blocks.
+ensure_running() {
+    pgrep -x easyeffects >/dev/null && return 0
+    systemd-run --user --collect --unit="easyeffects-svc-$(date +%s)" easyeffects --service-mode >/dev/null
+    for _ in $(seq 20); do sleep 0.25; easyeffects -a output >/dev/null 2>&1 && return 0; done
+}
+
+load() {   # load <index>
+    easyeffects -l "${PRESETS[$1]}"
+    notify "${LABELS[$1]}" "($(( $1 + 1 ))/${#PRESETS[@]})  ${PRESETS[$1]}"
+    echo "${PRESETS[$1]}"
+}
+
+ensure_running
+cur=$(current)
+idx=-1
+for i in "${!PRESETS[@]}"; do [[ ${PRESETS[$i]} == "$cur" ]] && idx=$i; done
+
+case "${1:-next}" in
+next)   load $(( (idx + 1) % ${#PRESETS[@]} )) ;;
+status) echo "${cur:-none}" ;;
+[1-9])  (( $1 <= ${#PRESETS[@]} )) || { echo "1..${#PRESETS[@]}"; exit 1; }; load $(( $1 - 1 )) ;;
+*)      for i in "${!PRESETS[@]}"; do [[ ${PRESETS[$i]} == "$1" ]] && { load "$i"; exit 0; }; done
+        sed -n '2,7p' "$0"; exit 1 ;;
+esac

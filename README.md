@@ -85,14 +85,14 @@ and reproduced here:
   +19.6 / +9.5 / +3.5). Peaks reach about -0.1 dBFS, about 2.6 dB above
   Windows' measured woofer peak, so avoid long full-volume bass-heavy playback.
 
-### 4-channel mode (recommended): `Huawei-Windows`
+### 4-channel mode (recommended): `Huawei-Normal`
 
 `sudo huawei-4ch enable` (then reboot) gives the woofers and tweeters separate
 feeds like Windows: a 3 kHz / 2.4 kHz crossover with a limiter per speaker pair
 at Windows' measured ceilings (woofer -2.7 dBFS, tweeter -6.9 dBFS peak).
 `sudo huawei-4ch disable` undoes it.
 
-Use **`easyeffects/Huawei-Windows.json`** with it, together with
+Use **`easyeffects/Huawei-Normal.json`** with it, together with
 `sudo huawei-speakers --gain 8`. It is Huawei's measured chain and nothing
 more: 3-band compressor (300 Hz / 3 kHz, bass release 30 ms) → 15-band voicing
 EQ → limiter at -1 dBFS. Played with Windows' own test signals and compared
@@ -101,13 +101,27 @@ input level from -40 to -10 dBFS (frequency response 0.5 dB RMS), recovers bass
 after a loud note at Windows' speed, and its peaks stay at Windows' per-speaker
 ceilings.
 
-**`easyeffects/Huawei-Windows-Bass.json`** is the same with about +3 dB more bass
+**`easyeffects/Huawei-Bass.json`** is the same with about +3 dB more bass
 at quiet and normal levels (+1.5 dB when loud): bass makeup 4.5 dB, ratio 4,
-attack 3 ms. Pumping and crackle measure the same as Huawei-Windows; drum hits
+attack 3 ms. Pumping and crackle measure the same as Huawei-Normal; drum hits
 are slightly softer (punch 5.6 vs 7.3 dB), because kick peaks can't rise above
-the woofer ceiling. Switch back to Huawei-Windows any time.
+the woofer ceiling. Switch back to Huawei-Normal any time.
 
-**`easyeffects/Huawei-Windows-Bass-Strong.json`** goes further: about +5 / +3.5 /
+Switch presets with **Ctrl+Alt+B** (cycles Normal → Bass → MaxBass and shows a
+notification) or `huawei-sound 1|2|3`. The names are chosen so that none is the
+start of another: EasyEffects' tray list mixes up presets whose names share a prefix
+(e.g. `Huawei-Windows` and `Huawei-Windows-Bass`). Shortcut setup:
+
+```bash
+ln -sf "$PWD/huawei-sound" ~/.local/bin/huawei-sound
+K=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/huawei-sound/
+gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['$K']"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$K name 'Huawei sound'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$K command "$HOME/.local/bin/huawei-sound"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$K binding '<Control><Alt>b'
+```
+
+**`easyeffects/Huawei-MaxBass.json`** goes further: about +5 / +3.5 /
 +1.5 dB bass at quiet / normal / loud levels (bass makeup 6.5 dB, ratio 4.5,
 attack 3 ms). Kick pumping 2.4 dB, IMD -78 dB (inaudible), punch 4.1 dB.
 
