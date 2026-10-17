@@ -89,7 +89,7 @@ and reproduced here:
 
 `sudo huawei-4ch enable` (then reboot) gives the woofers and tweeters separate
 feeds like Windows: a 3 kHz / 2.4 kHz crossover with a limiter per speaker pair
-at Windows' measured ceilings (woofer -0.3 dBFS, tweeter -6.9 dBFS peak; the presets' own limiter keeps woofer peaks at -1 dBFS except Huawei-Kick).
+with peaks at most -3 dBFS on the woofers (they crackle closer to full scale on bass-heavy music) and -6.9 dBFS on the tweeters (Windows' measured ceiling).
 `sudo huawei-4ch disable` undoes it.
 
 In 4-channel mode the tweeter amp runs flat (`huawei-speakers --tweeter-mode 1`, the
@@ -118,7 +118,7 @@ the woofer ceiling. Switch back to Huawei-Normal any time.
 
 **`easyeffects/Huawei-Kick.json`** targets strong bass kicks in loud music: bass
 ratio 1.8, attack 25 ms (the kick's attack passes the compressor), EasyEffects
-limiter at 0 dBFS so only the woofer limiter (-0.3 dBFS) catches kick peaks.
+limiter at 0 dBFS so only the crossover's woofer limiter catches kick peaks.
 Measured on a real kick-heavy song: kicks +2.3 dB vs Huawei-Normal, punch 4.0 dB
 (song 4.9, Normal 3.7), kick pumping 1.8/2.2 dB, no crackle (IMD -102 dB).
 
