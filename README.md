@@ -89,7 +89,7 @@ and reproduced here:
 
 `sudo huawei-4ch enable` (then reboot) gives the woofers and tweeters separate
 feeds like Windows: a 3 kHz / 2.4 kHz crossover with a limiter per speaker pair
-at Windows' measured ceilings (woofer -2.7 dBFS, tweeter -6.9 dBFS peak).
+at Windows' measured ceilings (woofer -0.3 dBFS, tweeter -6.9 dBFS peak; the presets' own limiter keeps woofer peaks at -1 dBFS except Huawei-Kick).
 `sudo huawei-4ch disable` undoes it.
 
 Use **`easyeffects/Huawei-Normal.json`** with it, together with
@@ -107,8 +107,14 @@ attack 3 ms. Pumping and crackle measure the same as Huawei-Normal; drum hits
 are slightly softer (punch 5.6 vs 7.3 dB), because kick peaks can't rise above
 the woofer ceiling. Switch back to Huawei-Normal any time.
 
-Switch presets with **Ctrl+Alt+B** (cycles Normal → Bass → MaxBass and shows a
-notification) or `huawei-sound 1|2|3`. The names are chosen so that none is the
+**`easyeffects/Huawei-Kick.json`** targets strong bass kicks in loud music: bass
+ratio 1.8, attack 25 ms (the kick's attack passes the compressor), EasyEffects
+limiter at 0 dBFS so only the woofer limiter (-0.3 dBFS) catches kick peaks.
+Measured on a real kick-heavy song: kicks +2.3 dB vs Huawei-Normal, punch 4.0 dB
+(song 4.9, Normal 3.7), kick pumping 1.8/2.2 dB, no crackle (IMD -102 dB).
+
+Switch presets with **Ctrl+Alt+B** (cycles Normal → Bass → MaxBass → Kick and shows a
+notification) or `huawei-sound 1|2|3|4`. The names are chosen so that none is the
 start of another: EasyEffects' tray list mixes up presets whose names share a prefix
 (e.g. `Huawei-Windows` and `Huawei-Windows-Bass`). Shortcut setup:
 

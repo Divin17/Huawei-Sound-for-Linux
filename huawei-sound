@@ -2,12 +2,12 @@
 # Switch between the Huawei EasyEffects presets.
 #
 #   huawei-sound           cycle to the next preset (bound to Ctrl+Alt+B)
-#   huawei-sound <n|name>  pick one: 1 = normal, 2 = bass, 3 = strong bass
+#   huawei-sound <n|name>  pick one: 1 = normal, 2 = bass, 3 = strong bass, 4 = kick
 #   huawei-sound status    show the active preset
 set -euo pipefail
 
-PRESETS=(Huawei-Normal Huawei-Bass Huawei-MaxBass)
-LABELS=("Huawei sound" "Huawei sound + bass" "Huawei sound + strong bass")
+PRESETS=(Huawei-Normal Huawei-Bass Huawei-MaxBass Huawei-Kick)
+LABELS=("Huawei sound" "Huawei sound + bass" "Huawei sound + strong bass" "Huawei sound + kick")
 
 current() { easyeffects -a output 2>/dev/null | head -1; }
 
