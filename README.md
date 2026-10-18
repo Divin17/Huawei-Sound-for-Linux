@@ -53,7 +53,7 @@ quiet sound with the tweeters wasting power on bass.
 ## Install
 
 Requirements: PipeWire (`pw-play`, `pw-cli`), Python 3, systemd, EasyEffects 8,
-and the ZaMaximX2 LADSPA plugin (`zam-plugins`).
+and the ZaMaximX2 and ZamCompX2 LADSPA plugins (`zam-plugins`).
 
 Huawei's tuning data is not in this repo. The installer decodes it from the
 Windows MultiPA driver's config files, which are on your Windows partition if
@@ -109,7 +109,7 @@ Switch with **Ctrl+Alt+B** (cycles and shows a notification) or `huawei-sound 1|
 | 1 | **Huawei-Normal** | Huawei's measured chain and nothing more: 3-band compressor (300 Hz / 3 kHz) → 15-band voicing EQ → limiter. Matches Windows within 1 dB per band from −40 to −10 dBFS input. |
 | 2 | **Huawei-Bass** | About +3 dB more bass at quiet and normal levels (+1.5 dB when loud). |
 | 3 | **Huawei-MaxBass** | About +5 / +3.5 / +1.5 dB bass at quiet / normal / loud levels. |
-| 4 | **Huawei-Kick** | For strong bass kicks in loud music: the kick's attack passes the bass compressor. |
+| 4 | **Huawei-Kick** | Closest to Windows on kick-heavy music: the kick's attack passes the bass compressor; the crossover's woofer protection keeps it clean. |
 
 The preset names are chosen so that none is the start of another, because
 EasyEffects' tray list mixes up presets whose names share a prefix.
@@ -134,10 +134,16 @@ test signals:
   870 Hz −3.25, 5.4 kHz −4, 10.5 kHz +4 dB), fitted with the built-in mics
   against Windows' recording through the same mics. Deviation from Windows,
   300 Hz–14 kHz: 3.7 → 1.5 dB RMS. They apply to all presets.
-- **Woofer headroom:** the woofers distort near full scale (at 150 Hz, the 3rd
-  harmonic rises from −28 dB at −12 dBFS to −8 dB at −0.5 dBFS). The crossover
-  keeps woofer peaks at −3 dBFS, which stopped audible crackle on bass-heavy
-  music at full volume. Tweeter peaks stay at −6.9 dBFS, Windows' measured ceiling.
+- **Woofer protection (kick vs. crackle):** the woofers distort when the bass stays
+  loud (at 150 Hz, the 3rd harmonic rises from −28 dB at −12 dBFS to −8 dB at
+  −0.5 dBFS); a bass-heavy song crackled at −9 dBFS woofer RMS. Like Windows'
+  SmartPA, the crossover runs a slow compressor on the woofers (ZamCompX2: threshold
+  −12 dBFS, ratio 10, attack 100 ms so kicks pass, release 300 ms) and a −2 dBFS
+  peak limiter (Windows' measured maximum on real music). Fitted against Windows'
+  4-channel capture of a kick-heavy song (`wasmeasure` `xfer`/`songana` analysis):
+  bass 60–150 Hz within 0.3 dB of Windows, the kick at 85–107 Hz within 1 dB,
+  while the crackling song stays at its crackle-free level. Tweeter peaks stay at
+  −6.9 dBFS, Windows' measured ceiling.
 - **Loudness:** at amp gain +5 dB Linux matches Windows' loudness (phone sound
   meter, dB(A) at 30 cm). The amps start clipping around +9 dB with full-scale
   peaks. Up to +8 was tested clean with these presets, up to +12 is allowed with a
