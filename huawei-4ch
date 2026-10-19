@@ -41,7 +41,8 @@ if mode == "4way":
     s = re.sub(r"(?m)^outputDevice=.*$", "outputDevice=matebook_speakers", s)
     if "outputDevice=" not in s:
         s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\noutputDevice=matebook_speakers\n", 1)
-    s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\nuseDefaultOutputDevice=false\n", 1)
+    # follow the default output (Bluetooth etc.); huawei-volume-taper bypasses the presets off the speakers
+    s = s.replace("[StreamOutputs]\n", "[StreamOutputs]\nuseDefaultOutputDevice=true\n", 1)
     s = s.replace("[StreamInputs]\n", "[StreamInputs]\nuseDefaultInputDevice=false\n", 1)
 else:
     s = re.sub(r"(?m)^inputDevice=.*$", f"inputDevice=alsa_input.{card}.HiFi__Mic1__source", s)

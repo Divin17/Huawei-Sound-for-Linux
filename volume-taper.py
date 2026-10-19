@@ -11,6 +11,11 @@ slider position x gives exactly the attenuation Windows applies at x. It only
 ever boosts towards Windows' level and never past 0 dB: at 100% nothing
 changes, and the final gain is always <= 1.
 
+It also follows the output device: the Huawei EasyEffects presets are tuned for
+these speakers, so when another output (Bluetooth earphones, HDMI) becomes the
+default, EasyEffects is put in global bypass, and taken out again when the
+speakers are selected. (EasyEffects itself follows the default output device.)
+
 Usage: huawei-volume-taper [--debug]
 """
 
@@ -85,6 +90,26 @@ def hw_full(card):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def set_bypass(on):
+    """EasyEffects global bypass. Only when EasyEffects runs: otherwise 'easyeffects -b' would open a window."""
+    if subprocess.run(["pgrep", "-x", "easyeffects"], stdout=subprocess.DEVNULL).returncode != 0:
+        return False
+    subprocess.run(["timeout", "5", "easyeffects", "-b", "1" if on else "2"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+
+
+def default_sink(obj):
+    """Default sink name from the 'default' metadata object, or None if obj isn't it."""
+    if obj.get("type") != "PipeWire:Interface:Metadata" or (obj.get("props") or {}).get("metadata.name") != "default":
+        return None
+    for m in obj.get("metadata") or []:
+        if m.get("subject") == 0 and m.get("key") == "default.audio.sink":
+            v = m.get("value")
+            return v.get("name") if isinstance(v, dict) else None
+    return None
+
+
 def objects(stream):
     """Yield objects from `pw-dump --monitor`, which prints a JSON array per update."""
     buf = []
@@ -102,6 +127,7 @@ def objects(stream):
 
 def main():
     node_id, applied, hw_checked = None, {}, 0.0
+    bypassed = None                      # EasyEffects bypass state we last set
     card = int(os.environ.get("HUAWEI_ALSA_CARD", "0"))   # also used when SINK is a virtual sink
     dump = subprocess.Popen(["stdbuf", "-oL", "pw-dump", "--monitor", "--no-colors"],
                             stdout=subprocess.PIPE, text=True)
@@ -117,6 +143,13 @@ def main():
     log(f"applying the Windows volume curve to {SINK}")
 
     for obj in objects(dump.stdout):
+        dflt = default_sink(obj)
+        if dflt is not None:
+            want_bypass = dflt != SINK
+            if want_bypass != bypassed and set_bypass(want_bypass):
+                bypassed = want_bypass
+                log(f"default output {dflt}: EasyEffects " + ("bypassed" if want_bypass else "active"))
+            continue
         info = obj.get("info")
         if info is None:                 # object removed
             if obj.get("id") == node_id:

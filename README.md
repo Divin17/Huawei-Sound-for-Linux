@@ -47,7 +47,8 @@ quiet sound with the tweeters wasting power on bass.
    24 dB/oct) and a limiter per speaker pair.
 3. **EasyEffects presets** reproduce Huawei's processing chain, measured on Windows.
 4. **`huawei-volume-taper`** (user service) makes the volume slider follow
-   Windows' measured curve (50% = −10.4 dB instead of −18 dB).
+   Windows' measured curve (50% = −10.4 dB instead of −18 dB), and bypasses the
+   presets when you switch to Bluetooth earphones or another output.
 5. **`huawei-sound`** switches presets with **Ctrl+Alt+B**.
 
 ## Install
@@ -173,6 +174,11 @@ pw-cli s matebook_speakers Props '{ params = [ "eL4:Gain" 0 "eR4:Gain" 0 ] }'
 
 Restarting PipeWire stops EasyEffects and cuts audio from running apps (Spotify must be fully
 quit and reopened). Wired headphones are not handled in 4-channel mode.
+
+**Bluetooth and other outputs:** EasyEffects follows the output device you pick in
+the system sound settings. The Huawei presets are tuned for the laptop speakers,
+so `huawei-volume-taper` switches EasyEffects to bypass whenever another output
+(Bluetooth earphones, HDMI) is selected, and back on when the speakers are selected.
 
 ## Keep the volume sensible
 
