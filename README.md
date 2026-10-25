@@ -54,7 +54,7 @@ quiet sound with the tweeters wasting power on bass.
 ## Install
 
 Requirements: PipeWire (`pw-play`, `pw-cli`), Python 3, systemd, EasyEffects 8,
-and the ZaMaximX2 and ZamCompX2 LADSPA plugins (`zam-plugins`).
+and the LADSPA plugins ZamCompX2 (`zam-plugins`) and Fast Lookahead Limiter (`swh-plugins`).
 
 Huawei's tuning data is not in this repo. The installer decodes it from the
 Windows MultiPA driver's config files, which are on your Windows partition if
@@ -63,7 +63,7 @@ you dual-boot:
 Mount the Windows partition, or copy those two files into a folder.
 
 ```bash
-sudo apt install easyeffects zam-plugins
+sudo apt install easyeffects zam-plugins swh-plugins
 git clone https://github.com/Divin17/Huawei-Sound-for-Linux.git
 cd Huawei-Sound-for-Linux
 ./install.sh              # finds a mounted Windows partition automatically
